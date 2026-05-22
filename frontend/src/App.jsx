@@ -2,6 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+const SUGGESTED_QUESTIONS = [
+  'Summarize this candidate',
+  "What are the candidate's strongest skills?",
+  'What projects are listed in the resume?',
+  'Is this candidate a good fit for a frontend role?',
+];
+
+const RESPONSE_MODES = [
+  { value: 'professional', label: 'Professional' },
+  { value: 'recruiter_summary', label: 'Recruiter Summary' },
+  { value: 'interview_prep', label: 'Interview Prep' },
+  { value: 'short_answer', label: 'Short Answer' },
+];
+
 let messageId = 0;
 function nextId() {
   messageId += 1;
@@ -30,6 +44,7 @@ export default function App() {
   const [resumeStatus, setResumeStatus] = useState({ loaded: false, filename: null, word_count: 0 });
   const [uploadStatus, setUploadStatus] = useState('idle'); // idle | uploading | success | error
   const [uploadMessage, setUploadMessage] = useState('');
+  const [responseMode, setResponseMode] = useState('professional');
 
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
@@ -118,7 +133,7 @@ export default function App() {
       const res = await fetch(`${API_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: trimmed, history }),
+        body: JSON.stringify({ message: trimmed, history, response_mode: responseMode }),
       });
 
       if (!res.ok) {
@@ -204,6 +219,40 @@ export default function App() {
             </div>
           )}
           <div ref={chatEndRef} />
+        </div>
+
+        <div className="chat-controls">
+          <div className="suggested-questions">
+            <span className="suggested-questions__label">Suggested questions</span>
+            <div className="suggested-questions__list">
+              {SUGGESTED_QUESTIONS.map((question) => (
+                <button
+                  key={question}
+                  type="button"
+                  className="suggested-questions__btn"
+                  onClick={() => handleSend(question)}
+                  disabled={isLoading || !resumeStatus.loaded}
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <label className="mode-select">
+            <span className="mode-select__label">Response mode</span>
+            <select
+              value={responseMode}
+              onChange={(e) => setResponseMode(e.target.value)}
+              disabled={isLoading}
+            >
+              {RESPONSE_MODES.map((mode) => (
+                <option key={mode.value} value={mode.value}>
+                  {mode.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <form className="composer" onSubmit={handleSubmit}>

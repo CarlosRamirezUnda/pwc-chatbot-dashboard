@@ -53,12 +53,50 @@ Rules:
 - Be specific when the resume provides details.
 - Use bullets when helpful.
 - Keep a confident, polished, professional tone.
+- Avoid repeating the same opening phrase in every response.
+- Do not start every answer with "Based on your resume."
+- Vary the wording naturally while still making it clear that the resume is the source of truth.
+- If discussing gaps or areas for improvement, be constructive and specific.
+- Do not exaggerate the candidates experience level.
 
 RESUME:
 {resume_text}
 """
 
 MAX_HISTORY_TURNS = 15
+
+ResponseMode = Literal[
+    "professional",
+    "recruiter_summary",
+    "interview_prep",
+    "short_answer",
+]
+
+MODE_STYLES: dict[str, str] = {
+    "professional": (
+        "Response style: Give a polished professional answer in 2–5 sentences. "
+        "Be clear, confident, and specific. Highlight relevant resume evidence when possible."
+    ),
+
+    "recruiter_summary": (
+        "Response style: Answer like a recruiter writing notes for a hiring manager. "
+        "Focus on role fit, strongest qualifications, relevant skills, and any resume-based gaps. "
+        "Use a balanced tone: positive but realistic. "
+        "Do not overhype the candidate. Keep it concise and useful for hiring decisions."
+    ),
+
+    "interview_prep": (
+        "Response style: Help the candidate prepare for interviews. "
+        "Give practical talking points based on the resume. "
+        "When useful, suggest how the candidate could explain their experience using simple interview language. "
+        "Do not invent examples, metrics, or achievements not found in the resume."
+    ),
+
+    "short_answer": (
+        "Response style: Answer in 1–2 concise sentences only. "
+        "Be direct. Do not use bullet points unless the user explicitly asks."
+    ),
+}
 
 
 class ChatMessage(BaseModel):
@@ -69,6 +107,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=4000)
     history: list[ChatMessage] = Field(default_factory=list)
+    response_mode: ResponseMode = "professional"
 
 
 class ChatResponse(BaseModel):
@@ -96,14 +135,20 @@ def extract_pdf_text(file_bytes: bytes) -> str:
     return full_text
 
 
-def get_gemini_reply(resume_text: str, message: str, history: list[ChatMessage]) -> str:
+def get_gemini_reply(
+    resume_text: str,
+    message: str,
+    history: list[ChatMessage],
+    response_mode: ResponseMode = "professional",
+) -> str:
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not configured.")
 
     genai.configure(api_key=api_key)
     model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-    system_instruction = SYSTEM_PROMPT.format(resume_text=resume_text)
+    mode_style = MODE_STYLES.get(response_mode, MODE_STYLES["professional"])
+    system_instruction = SYSTEM_PROMPT.format(resume_text=resume_text) + "\n\n" + mode_style
 
     model = genai.GenerativeModel(
         model_name=model_name,
@@ -185,5 +230,10 @@ def chat(request: ChatRequest):
             detail="No resume loaded. Upload a PDF first.",
         )
 
-    reply = get_gemini_reply(_resume_text, request.message.strip(), request.history)
+    reply = get_gemini_reply(
+        _resume_text,
+        request.message.strip(),
+        request.history,
+        request.response_mode,
+    )
     return ChatResponse(reply=reply)
