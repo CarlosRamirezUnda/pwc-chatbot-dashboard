@@ -3,7 +3,7 @@ import { API_URL } from './config';
 
 /** Preview profile photo — replace with your own (see README in response). */
 const PROFILE_IMAGE_SRC =
-  '/public/profile/profile.jpg';
+  '/profile/profile.jpg';
 
 const SUGGESTED_QUESTIONS = [
   'Summarize this candidate',
