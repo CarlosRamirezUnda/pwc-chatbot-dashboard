@@ -32,99 +32,252 @@ body {
 }
 
 .app {
-  max-width: 800px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 1.5rem 1rem 2rem;
   min-height: 100vh;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.portfolio {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
 }
 
-.header h1 {
-  margin: 0 0 0.5rem;
-  font-size: 1.75rem;
+.portfolio-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
-.subtitle {
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.35rem 1.4rem;
+}
+
+.section-card {
+  padding: 1.4rem 1.5rem;
+}
+
+.section-title {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+}
+
+.hero__eyebrow {
+  margin: 0 0 0.65rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.hero__name {
+  margin: 0 0 0.4rem;
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.hero__title {
+  margin: 0 0 0.9rem;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.4;
+}
+
+.hero__intro {
+  margin: 0 0 1.25rem;
+  color: var(--text-muted);
+  line-height: 1.65;
+  font-size: 0.98rem;
+  max-width: 40rem;
+}
+
+.hero__cta {
+  padding: 0.65rem 1.25rem;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 1rem;
+}
+
+.hero__cta:hover {
+  background: var(--accent-hover);
+}
+
+.hero__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  font-size: 0.9rem;
+}
+
+.hero__links a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.hero__links a:hover {
+  color: var(--text);
+}
+
+.hero__links span,
+.hero__phone {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.portfolio-state {
+  margin: 0;
+  padding: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+}
+
+.portfolio-state--error {
+  color: var(--error-text);
+  border-color: #7f1d1d;
+  background: var(--error-bg);
+}
+
+.language-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.language-list li {
+  color: var(--text-muted);
+  line-height: 1.5;
+  font-size: 0.95rem;
+}
+
+.section-empty {
   margin: 0;
   color: var(--text-muted);
   font-size: 0.95rem;
   line-height: 1.5;
 }
 
-.upload-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.25rem;
-}
-
-.upload-panel h2 {
-  margin: 0 0 1rem;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.upload-row {
+.skill-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  gap: 0.5rem;
+}
+
+.skill-list li,
+.skill-pill {
+  padding: 0.4rem 0.75rem;
+  background: #1e293b;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.item-list {
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
 }
 
-.upload-label input[type='file'] {
-  position: absolute;
-  width: 0;
-  height: 0;
-  opacity: 0;
-  overflow: hidden;
-}
-
-.upload-label {
-  position: relative;
-  cursor: pointer;
-}
-
-.upload-button {
-  display: inline-block;
-  padding: 0.6rem 1.25rem;
-  background: var(--accent);
-  color: white;
-  border-radius: 8px;
+.item h3,
+.item__title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
   font-weight: 600;
-  font-size: 0.9rem;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.35;
 }
 
-.upload-label:hover .upload-button {
-  background: var(--accent-hover);
+.item p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 
-.upload-label:has(input:disabled) {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.resume-badge {
+.item__meta {
   font-size: 0.85rem;
-  color: var(--success);
+  margin-bottom: 0.5rem !important;
 }
 
-.upload-status {
-  margin: 0.75rem 0 0;
-  font-size: 0.9rem;
-}
-
-.upload-status--uploading {
+.item ul,
+.item__bullets {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
   color: var(--text-muted);
 }
 
-.upload-status--success {
-  color: var(--success);
+.item ul li,
+.item__bullets li {
+  margin-bottom: 0.25rem;
+  line-height: 1.5;
 }
 
-.upload-status--error {
-  color: var(--error-text);
+.chat-sidebar {
+  position: sticky;
+  top: 1rem;
+}
+
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 560px;
+  max-height: calc(100vh - 2rem);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.chat-panel__header {
+  padding: 1rem 1rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.chat-panel__header h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.chat-panel__header p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.chat-panel__status {
+  color: var(--success);
 }
 
 .error-banner {
@@ -135,15 +288,9 @@ body {
   border: 1px solid #7f1d1d;
 }
 
-.chat-panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 420px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
+.error-banner--chat {
+  margin: 0.75rem 1rem 0;
+  font-size: 0.85rem;
 }
 
 .messages {
@@ -153,21 +300,23 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  min-height: 200px;
 }
 
 .empty-state {
   margin: auto;
   text-align: center;
   color: var(--text-muted);
-  font-size: 0.95rem;
-  max-width: 28rem;
+  font-size: 0.9rem;
+  max-width: 20rem;
 }
 
 .message {
-  max-width: 90%;
+  max-width: 95%;
   padding: 0.75rem 1rem;
   border-radius: var(--radius);
   line-height: 1.5;
+  font-size: 0.9rem;
 }
 
 .message--user {
@@ -183,7 +332,7 @@ body {
 
 .message-label {
   display: block;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -212,7 +361,7 @@ body {
 .suggested-questions__label,
 .mode-select__label {
   display: block;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -221,13 +370,13 @@ body {
 
 .suggested-questions__list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 .suggested-questions__btn {
   padding: 0.45rem 0.75rem;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   background: #1e293b;
   color: var(--text);
   border: 1px solid var(--border);
@@ -248,13 +397,12 @@ body {
 
 .mode-select select {
   width: 100%;
-  max-width: 280px;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
   color: var(--text);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .mode-select select:disabled {
@@ -271,12 +419,12 @@ body {
 
 .composer input {
   flex: 1;
-  padding: 0.75rem 1rem;
+  padding: 0.65rem 0.85rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
   color: var(--text);
-  font-size: 1rem;
+  font-size: 0.9rem;
 }
 
 .composer input:focus {
@@ -289,13 +437,14 @@ body {
 }
 
 .composer button {
-  padding: 0.75rem 1.25rem;
+  padding: 0.65rem 1rem;
   background: var(--accent);
   color: white;
   border: none;
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
+  font-size: 0.9rem;
 }
 
 .composer button:hover:not(:disabled) {
@@ -307,17 +456,28 @@ body {
   cursor: not-allowed;
 }
 
+@media (max-width: 960px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-sidebar {
+    position: static;
+  }
+
+  .chat-panel {
+    min-height: 480px;
+    max-height: none;
+  }
+}
+
 @media (max-width: 600px) {
   .app {
     padding: 1rem 0.75rem 1.5rem;
   }
 
-  .header h1 {
-    font-size: 1.4rem;
-  }
-
-  .message {
-    max-width: 95%;
+  .hero__name {
+    font-size: 1.55rem;
   }
 
   .composer {

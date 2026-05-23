@@ -1,12 +1,13 @@
 """
 Personal Chatbot Dashboard — FastAPI backend.
-Upload a PDF resume, then chat grounded only in that text via Gemini Flash.
+Loads resume text from resume.txt or resume.pdf on startup, then chat via Gemini Flash.
 """
 
 from __future__ import annotations
 
 import io
 import os
+from pathlib import Path
 from typing import Literal
 
 import google.generativeai as genai
@@ -15,6 +16,8 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
+
+from resume_parser import build_resume_data
 
 load_dotenv()
 
@@ -28,9 +31,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory resume store (MVP — resets when server restarts)
+BACKEND_DIR = Path(__file__).resolve().parent
+DATA_DIR = BACKEND_DIR / "data"
+DEFAULT_RESUME_CANDIDATES = [
+    DATA_DIR / "resume.pdf",
+    DATA_DIR / "resume.txt",
+    BACKEND_DIR / "resume.pdf",
+    BACKEND_DIR / "resume.txt",
+]
+
+# In-memory resume store (loaded from file on startup)
 _resume_text: str | None = None
 _resume_filename: str | None = None
+_resume_source: str | None = None
+_resume_portfolio_cache: dict | None = None
 
 SYSTEM_PROMPT = """
 You are a professional career assistant representing the candidate.
@@ -114,11 +128,58 @@ class ChatResponse(BaseModel):
     reply: str
 
 
-def extract_pdf_text(file_bytes: bytes) -> str:
+class ProjectItem(BaseModel):
+    title: str
+    description: str = ""
+
+
+class ExperienceItem(BaseModel):
+    title: str
+    company: str = ""
+    period: str = ""
+    highlights: list[str] = Field(default_factory=list)
+
+
+class EducationItem(BaseModel):
+    degree: str
+    school: str = ""
+    year: str = ""
+
+
+class LinkItem(BaseModel):
+    label: str
+    url: str
+
+
+class ResumeDataResponse(BaseModel):
+    name: str = ""
+    title: str = ""
+    summary: str = ""
+    email: str = ""
+    phone: str = ""
+    links: list[LinkItem] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list)
+    projects: list[ProjectItem] = Field(default_factory=list)
+    experience: list[ExperienceItem] = Field(default_factory=list)
+    education: list[EducationItem] = Field(default_factory=list)
+    languages: list[str] = Field(default_factory=list)
+    source: str | None = None
+
+
+def refresh_portfolio_cache() -> None:
+    global _resume_portfolio_cache
+    if _resume_text is None or not _resume_text.strip():
+        _resume_portfolio_cache = None
+        return
+    parsed = build_resume_data(_resume_text)
+    _resume_portfolio_cache = parsed
+
+
+def _parse_pdf_bytes(file_bytes: bytes) -> str:
     try:
         reader = PdfReader(io.BytesIO(file_bytes))
     except Exception as exc:
-        raise HTTPException(status_code=400, detail="Invalid or corrupted PDF file.") from exc
+        raise ValueError("Invalid or corrupted PDF file.") from exc
 
     pages = []
     for page in reader.pages:
@@ -128,11 +189,94 @@ def extract_pdf_text(file_bytes: bytes) -> str:
 
     full_text = "\n".join(pages).strip()
     if not full_text:
-        raise HTTPException(
-            status_code=400,
-            detail="Could not extract text from PDF. Try a text-based PDF (not a scanned image).",
+        raise ValueError(
+            "Could not extract text from PDF. Try a text-based PDF (not a scanned image)."
         )
     return full_text
+
+
+def resolve_resume_path() -> Path | None:
+    env_path = os.getenv("RESUME_FILE")
+    if env_path:
+        path = Path(env_path)
+        if not path.is_absolute():
+            path = BACKEND_DIR / path
+        return path if path.is_file() else None
+
+    for candidate in DEFAULT_RESUME_CANDIDATES:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def read_resume_from_path(resume_path: Path) -> str:
+    suffix = resume_path.suffix.lower()
+    if suffix == ".txt":
+        return resume_path.read_text(encoding="utf-8").strip()
+    if suffix == ".pdf":
+        return _parse_pdf_bytes(resume_path.read_bytes())
+    raise ValueError(f"Unsupported resume format: {resume_path.suffix}. Use .txt or .pdf.")
+
+
+def load_resume_from_file() -> None:
+    global _resume_text, _resume_filename, _resume_source, _resume_portfolio_cache
+
+    resume_path = resolve_resume_path()
+    if resume_path is None:
+        _resume_text = None
+        _resume_filename = None
+        _resume_source = None
+        _resume_portfolio_cache = None
+        return
+
+    try:
+        text = read_resume_from_path(resume_path)
+    except ValueError:
+        _resume_text = None
+        _resume_filename = None
+        _resume_source = None
+        _resume_portfolio_cache = None
+        return
+
+    if not text:
+        _resume_text = None
+        _resume_filename = None
+        _resume_source = None
+        _resume_portfolio_cache = None
+        return
+
+    _resume_text = text
+    _resume_filename = resume_path.name
+    try:
+        _resume_source = str(resume_path.relative_to(BACKEND_DIR))
+    except ValueError:
+        _resume_source = str(resume_path)
+
+    refresh_portfolio_cache()
+
+
+@app.on_event("startup")
+def startup_load_resume() -> None:
+    load_resume_from_file()
+
+
+def require_resume_text() -> str:
+    if _resume_text is None or not _resume_text.strip():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Resume not loaded. Add backend/data/resume.pdf or backend/data/resume.txt "
+                "(or set RESUME_FILE) and restart the server."
+            ),
+        )
+    return _resume_text
+
+
+def extract_pdf_text(file_bytes: bytes) -> str:
+    try:
+        return _parse_pdf_bytes(file_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def get_gemini_reply(
@@ -194,13 +338,25 @@ def resume_status():
     return {
         "loaded": _resume_text is not None,
         "filename": _resume_filename,
+        "source": _resume_source,
         "word_count": len(_resume_text.split()) if _resume_text else 0,
     }
 
 
+@app.get("/resume-data", response_model=ResumeDataResponse)
+def resume_data():
+    require_resume_text()
+    if _resume_portfolio_cache is None:
+        refresh_portfolio_cache()
+    if _resume_portfolio_cache is None:
+        raise HTTPException(status_code=503, detail="Could not build portfolio data from resume.")
+    payload = {**_resume_portfolio_cache, "source": _resume_source}
+    return ResumeDataResponse(**payload)
+
+
 @app.post("/upload")
 async def upload_resume(file: UploadFile = File(...)):
-    global _resume_text, _resume_filename
+    global _resume_text, _resume_filename, _resume_source
 
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Please upload a PDF file.")
@@ -214,6 +370,7 @@ async def upload_resume(file: UploadFile = File(...)):
     text = extract_pdf_text(content)
     _resume_text = text
     _resume_filename = file.filename
+    refresh_portfolio_cache()
 
     return {
         "message": "Resume uploaded successfully.",
@@ -224,14 +381,10 @@ async def upload_resume(file: UploadFile = File(...)):
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
-    if _resume_text is None:
-        raise HTTPException(
-            status_code=400,
-            detail="No resume loaded. Upload a PDF first.",
-        )
+    resume_text = require_resume_text()
 
     reply = get_gemini_reply(
-        _resume_text,
+        resume_text,
         request.message.strip(),
         request.history,
         request.response_mode,
