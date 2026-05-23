@@ -1,25 +1,29 @@
 """
 Personal Chatbot Dashboard — FastAPI backend.
-Loads resume text from resume.txt or resume.pdf on startup, then chat via Gemini Flash.
+Loads resume text from resume.txt or resume.pdf on startup, then chat via GenAI Proxy.
 """
 
 from __future__ import annotations
 
 import io
+import logging
 import os
 from pathlib import Path
 from typing import Literal
 
-import google.generativeai as genai
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
 
+from genai_client import GenAIClientError, chat_completions_create, log_startup_config
 from resume_parser import build_resume_data
 
 load_dotenv()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Personal Chatbot Dashboard API")
 
@@ -257,6 +261,7 @@ def load_resume_from_file() -> None:
 
 @app.on_event("startup")
 def startup_load_resume() -> None:
+    log_startup_config()
     load_resume_from_file()
 
 
@@ -279,53 +284,26 @@ def extract_pdf_text(file_bytes: bytes) -> str:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-def get_gemini_reply(
+def get_chat_reply(
     resume_text: str,
     message: str,
     history: list[ChatMessage],
     response_mode: ResponseMode = "professional",
 ) -> str:
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not configured.")
-
-    genai.configure(api_key=api_key)
-    model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     mode_style = MODE_STYLES.get(response_mode, MODE_STYLES["professional"])
-    system_instruction = SYSTEM_PROMPT.format(resume_text=resume_text) + "\n\n" + mode_style
+    system_content = SYSTEM_PROMPT.format(resume_text=resume_text) + "\n\n" + mode_style
 
-    model = genai.GenerativeModel(
-        model_name=model_name,
-        system_instruction=system_instruction,
-        generation_config={"temperature": 0.3, "max_output_tokens": 1024},
-    )
+    messages: list[dict[str, str]] = [{"role": "system", "content": system_content}]
 
     capped = history[-MAX_HISTORY_TURNS:] if len(history) > MAX_HISTORY_TURNS else history
-    contents: list[dict] = []
     for item in capped:
-        role = "user" if item.role == "user" else "model"
-        contents.append({"role": role, "parts": [item.content]})
-    contents.append({"role": "user", "parts": [message]})
+        messages.append({"role": item.role, "content": item.content})
+    messages.append({"role": "user", "content": message})
 
     try:
-        response = model.generate_content(contents)
-    except Exception as exc:
-        err = str(exc)
-        if "429" in err or "quota" in err.lower() or "Quota exceeded" in err:
-            raise HTTPException(
-                status_code=429,
-                detail=(
-                    "Gemini API quota exceeded. Wait a minute and try again, "
-                    "or set GEMINI_MODEL to another free model (e.g. gemini-2.5-flash) in backend/.env. "
-                    "Check usage: https://ai.dev/rate-limit"
-                ),
-            ) from exc
-        raise HTTPException(status_code=502, detail=f"AI service error: {exc}") from exc
-
-    reply = getattr(response, "text", None)
-    if not reply:
-        raise HTTPException(status_code=502, detail="AI service returned an empty response.")
-    return reply.strip()
+        return chat_completions_create(messages, temperature=0.3, max_tokens=1024)
+    except GenAIClientError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
 
 @app.get("/health")
@@ -383,7 +361,7 @@ async def upload_resume(file: UploadFile = File(...)):
 def chat(request: ChatRequest):
     resume_text = require_resume_text()
 
-    reply = get_gemini_reply(
+    reply = get_chat_reply(
         resume_text,
         request.message.strip(),
         request.history,
