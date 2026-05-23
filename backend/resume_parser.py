@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 
-from genai_client import GenAIClientError, chat_completions_create
+import google.generativeai as genai
 
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 PHONE_RE = re.compile(r"(\+?\d[\d\s().-]{7,}\d)")
@@ -650,39 +651,39 @@ def _coerce_portfolio_data(data: dict) -> dict:
     }
 
 
-def extract_resume_data_with_genai(resume_text: str) -> dict:
-    prompt = RESUME_DATA_PROMPT.replace("{resume_text}", resume_text)
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                "You extract structured portfolio data from resumes. "
-                "Return only valid JSON matching the requested shape."
-            ),
-        },
-        {"role": "user", "content": prompt},
-    ]
+def extract_resume_data_with_gemini(resume_text: str) -> dict:
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY is not configured.")
 
-    try:
-        raw = chat_completions_create(
-            messages,
-            temperature=0.1,
-            max_tokens=4096,
-            response_format={"type": "json_object"},
-        )
-    except GenAIClientError as exc:
-        raise ValueError(exc.message) from exc
+    model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    genai.configure(api_key=api_key)
+
+    model = genai.GenerativeModel(
+        model_name=model_name,
+        generation_config={
+            "temperature": 0.1,
+            "max_output_tokens": 4096,
+            "response_mime_type": "application/json",
+        },
+    )
+
+    prompt = RESUME_DATA_PROMPT.replace("{resume_text}", resume_text)
+    response = model.generate_content(prompt)
+    raw = getattr(response, "text", None)
+    if not raw:
+        raise ValueError("Gemini returned an empty portfolio response.")
 
     parsed = json.loads(_strip_json_fences(raw))
     if not isinstance(parsed, dict):
-        raise ValueError("GenAI portfolio response was not a JSON object.")
+        raise ValueError("Gemini portfolio response was not a JSON object.")
 
     return _coerce_portfolio_data(parsed)
 
 
 def build_resume_data(resume_text: str) -> dict:
     try:
-        parsed = extract_resume_data_with_genai(resume_text)
+        parsed = extract_resume_data_with_gemini(resume_text)
     except Exception:
         parsed = _coerce_portfolio_data(parse_resume_data_fallback(resume_text))
 

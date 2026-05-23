@@ -1,6 +1,6 @@
 """
 Personal Chatbot Dashboard — FastAPI backend.
-Loads resume text from resume.txt or resume.pdf on startup, then chat via GenAI Proxy.
+Loads resume text from resume.txt or resume.pdf on startup, then chat via Gemini Flash.
 """
 
 from __future__ import annotations
@@ -11,13 +11,13 @@ import os
 from pathlib import Path
 from typing import Literal
 
+import google.generativeai as genai
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
 
-from genai_client import GenAIClientError, chat_completions_create, log_startup_config
 from resume_parser import build_resume_data
 
 load_dotenv()
@@ -259,9 +259,15 @@ def load_resume_from_file() -> None:
     refresh_portfolio_cache()
 
 
+def log_gemini_startup_config() -> None:
+    model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    logger.info("Gemini model: %s", model_name)
+    logger.info("Gemini API key configured: %s", bool(os.getenv("GEMINI_API_KEY", "").strip()))
+
+
 @app.on_event("startup")
 def startup_load_resume() -> None:
-    log_startup_config()
+    log_gemini_startup_config()
     load_resume_from_file()
 
 
@@ -290,20 +296,56 @@ def get_chat_reply(
     history: list[ChatMessage],
     response_mode: ResponseMode = "professional",
 ) -> str:
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise HTTPException(
+            status_code=500,
+            detail="GEMINI_API_KEY is not configured. Set it in backend/.env or Render environment variables.",
+        )
+
+    model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     mode_style = MODE_STYLES.get(response_mode, MODE_STYLES["professional"])
-    system_content = SYSTEM_PROMPT.format(resume_text=resume_text) + "\n\n" + mode_style
-
-    messages: list[dict[str, str]] = [{"role": "system", "content": system_content}]
-
-    capped = history[-MAX_HISTORY_TURNS:] if len(history) > MAX_HISTORY_TURNS else history
-    for item in capped:
-        messages.append({"role": item.role, "content": item.content})
-    messages.append({"role": "user", "content": message})
+    system_instruction = SYSTEM_PROMPT.format(resume_text=resume_text) + "\n\n" + mode_style
 
     try:
-        return chat_completions_create(messages, temperature=0.3, max_tokens=1024)
-    except GenAIClientError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
+            model_name=model_name,
+            system_instruction=system_instruction,
+            generation_config={"temperature": 0.3, "max_output_tokens": 1024},
+        )
+
+        capped = history[-MAX_HISTORY_TURNS:] if len(history) > MAX_HISTORY_TURNS else history
+        contents: list[dict] = []
+        for item in capped:
+            role = "user" if item.role == "user" else "model"
+            contents.append({"role": role, "parts": [item.content]})
+        contents.append({"role": "user", "parts": [message]})
+
+        response = model.generate_content(contents)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        err = str(exc)
+        if "429" in err or "quota" in err.lower() or "quota exceeded" in err:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Gemini API quota exceeded. Wait a minute and try again, "
+                    "or check usage in Google AI Studio."
+                ),
+            ) from exc
+        if "API_KEY_INVALID" in err or "API key not valid" in err:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid GEMINI_API_KEY. Check the key in Google AI Studio.",
+            ) from exc
+        raise HTTPException(status_code=502, detail=f"AI service error: {exc}") from exc
+
+    reply = getattr(response, "text", None)
+    if not reply or not str(reply).strip():
+        raise HTTPException(status_code=502, detail="AI service returned an empty response.")
+    return str(reply).strip()
 
 
 @app.get("/health")
