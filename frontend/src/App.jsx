@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+/** Preview profile photo — replace with your own (see README in response). */
+const PROFILE_IMAGE_SRC =
+  '/public/profile/profile.jpg';
+
 const SUGGESTED_QUESTIONS = [
   'Summarize this candidate',
   "What are the candidate's strongest skills?",
@@ -364,8 +368,9 @@ export default function App() {
     handleSend(input);
   }
 
-  function scrollToChat() {
+  function handleAskAssistant() {
     document.getElementById('chat')?.scrollIntoView({ behavior: 'smooth' });
+    handleSend(SUGGESTED_QUESTIONS[0]);
   }
 
   function renderPortfolioContent() {
@@ -390,32 +395,52 @@ export default function App() {
 
     return (
       <div className="portfolio-sections">
-        <section className="hero card">
-          <p className="hero__eyebrow">Portfolio</p>
-          {resumeData.name ? <h1 className="hero__name">{resumeData.name}</h1> : null}
-          {resumeData.title ? <p className="hero__title">{resumeData.title}</p> : null}
-          {resumeData.summary ? <p className="hero__intro">{resumeData.summary}</p> : null}
-          <button type="button" className="hero__cta" onClick={scrollToChat}>
-            Ask the assistant
-          </button>
-          {(resumeData.email || resumeData.phone || links.length > 0) && (
-            <div className="hero__links">
-              {resumeData.email ? (
-                <a href={`mailto:${resumeData.email}`}>{resumeData.email}</a>
-              ) : null}
-              {resumeData.phone ? <span className="hero__phone">{resumeData.phone}</span> : null}
-              {links.map((link) => (
-                <a
-                  key={`${link.label}-${link.url}`}
-                  href={linkHref(link.url)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {link.label}
-                </a>
-              ))}
+        <section className="hero card hero--profile">
+          <div className="hero__layout">
+            <div className="hero__media">
+              <div className="profile-image">
+                <img
+                  src={PROFILE_IMAGE_SRC}
+                  alt={resumeData.name ? `${resumeData.name} profile` : 'Profile photo'}
+                  className="profile-image__img"
+                  width={200}
+                  height={200}
+                />
+              </div>
             </div>
-          )}
+            <div className="hero__content">
+              <p className="hero__eyebrow">Portfolio</p>
+              {resumeData.name ? <h1 className="hero__name">{resumeData.name}</h1> : null}
+              {resumeData.title ? <p className="hero__title">{resumeData.title}</p> : null}
+              {resumeData.summary ? <p className="hero__intro">{resumeData.summary}</p> : null}
+              <button
+                type="button"
+                className="hero__cta btn-primary"
+                onClick={handleAskAssistant}
+                disabled={isLoading || !resumeStatus.loaded}
+              >
+                Ask the assistant
+              </button>
+              {(resumeData.email || resumeData.phone || links.length > 0) && (
+                <div className="hero__links">
+                  {resumeData.email ? (
+                    <a href={`mailto:${resumeData.email}`}>{resumeData.email}</a>
+                  ) : null}
+                  {resumeData.phone ? <span className="hero__phone">{resumeData.phone}</span> : null}
+                  {links.map((link) => (
+                    <a
+                      key={`${link.label}-${link.url}`}
+                      href={linkHref(link.url)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </section>
 
         {experience.length > 0 && (
@@ -510,7 +535,7 @@ export default function App() {
         <div className="portfolio">{renderPortfolioContent()}</div>
 
         <aside id="chat" className="chat-sidebar">
-          <div className="chat-panel">
+          <div className="chat-panel chat-panel--glow">
             <div className="chat-panel__header">
               <h2>Ask about my background</h2>
               <p>
@@ -597,7 +622,11 @@ export default function App() {
                 }
                 disabled={isLoading || !resumeStatus.loaded}
               />
-              <button type="submit" disabled={isLoading || !input.trim() || !resumeStatus.loaded}>
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={isLoading || !input.trim() || !resumeStatus.loaded}
+              >
                 Send
               </button>
             </form>
