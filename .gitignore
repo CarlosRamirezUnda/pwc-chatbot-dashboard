@@ -6,6 +6,7 @@ backend/uploads/*
 !backend/uploads/.gitkeep
 backend/data/*
 !backend/data/.gitkeep
+!backend/data/resume.pdf
 
 # Node
 frontend/node_modules/
